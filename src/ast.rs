@@ -1,9 +1,7 @@
 use std::{fmt::Display, slice::Iter};
 
-use crate::{
-    Keyword, Token,
-    asm::{self},
-};
+use crate::asm::{self};
+use crate::lex::{Keyword, Token};
 
 #[derive(Debug, PartialEq)]
 pub enum Exp {
@@ -105,7 +103,7 @@ pub fn parse_program(tokens: &mut Iter<Token>) -> Result<Program, String> {
 }
 
 pub fn parse_function(tokens: &mut Iter<Token>) -> Result<FunctionDefinition, String> {
-    expect(&Token::Keyword(crate::Keyword::Int), tokens)?;
+    expect(&Token::Keyword(Keyword::Int), tokens)?;
     let ident = parse_ident(tokens)?;
     expect(&Token::OpenParenthesis, tokens)?;
     expect_keyword(&Keyword::Void, tokens)?;
@@ -129,7 +127,7 @@ pub fn parse_exp(tokens: &mut Iter<Token>) -> Result<Exp, String> {
 }
 
 pub fn parse_statement(tokens: &mut Iter<Token>) -> Result<Statement, String> {
-    expect(&Token::Keyword(crate::Keyword::Return), tokens)?;
+    expect(&Token::Keyword(Keyword::Return), tokens)?;
     let exp = parse_exp(tokens)?;
     expect(&Token::SemiColon, tokens)?;
 
@@ -186,12 +184,12 @@ fn expect(expected_token: &Token, tokens: &mut Iter<Token>) -> Result<(), String
 #[cfg(test)]
 mod test {
     use crate::{
-        Keyword::{Int, Return, Void},
-        Token::{
+        ast::{FunctionDefinition, Statement, parse_exp, parse_function, parse_statement},
+        lex::Keyword::{Int, Return, Void},
+        lex::Token::{
             CloseBrace, CloseParenthesis, Constant, Identifier, Keyword, OpenBrace,
             OpenParenthesis, SemiColon,
         },
-        ast::{FunctionDefinition, Statement, parse_exp, parse_function, parse_statement},
     };
 
     #[test]
