@@ -294,7 +294,7 @@ fn compile(
         return Ok(());
     }
 
-    let program = parse_program(&tokens)?;
+    let program = parse_program(&mut tokens.iter())?;
     if debug {
         println!("Program ast: \n{}", program);
     }
