@@ -6,6 +6,13 @@ use crate::lex::{Keyword, Token};
 #[derive(Debug, PartialEq)]
 pub enum Exp {
     Constant(i32),
+    Unary(UnaryOperator, Box<Exp>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum UnaryOperator {
+    Complement,
+    Negate,
 }
 
 #[derive(Debug, PartialEq)]
@@ -27,6 +34,7 @@ impl Statement {
             Self::Return(exp) => {
                 let left_operand = match exp {
                     Exp::Constant(val) => asm::Operand::Imm(*val),
+                    Exp::Unary(_, _) => asm::Operand::Imm(1),
                 };
                 instructions.push(asm::Instruction::Mov {
                     source: left_operand,
@@ -114,15 +122,29 @@ pub fn parse_function(tokens: &mut Iter<Token>) -> Result<FunctionDefinition, St
     Ok(FunctionDefinition::Function(ident, statement))
 }
 
+fn parse_unop(token: &Token) -> Result<UnaryOperator, String> {
+    match token {
+        Token::Hyphen => Ok(UnaryOperator::Negate),
+        Token::Tilde => Ok(UnaryOperator::Complement),
+        unexpected => Err(format!("Expected '<unary>' but found '{}'", unexpected)),
+    }
+}
+
 pub fn parse_exp(tokens: &mut Iter<Token>) -> Result<Exp, String> {
-    if let Some(token) = tokens.next() {
-        if let Token::Constant(val) = token {
-            Ok(Exp::Constant(*val))
-        } else {
-            Err(format!("Expected '<num>' but found '{}'", token))
+    match tokens.next() {
+        Some(Token::Constant(val)) => Ok(Exp::Constant(*val)),
+        Some(token) if token == &Token::Hyphen || token == &Token::Tilde => {
+            let unary_op = parse_unop(token)?;
+            let inner_exp = parse_exp(tokens)?;
+            Ok(Exp::Unary(unary_op, Box::new(inner_exp)))
         }
-    } else {
-        Err("Expected '<num>' but reached the end".to_string())
+        Some(Token::OpenParenthesis) => {
+            let exp = parse_exp(tokens)?;
+            expect(&Token::CloseParenthesis, tokens)?;
+            Ok(exp)
+        }
+        None => Err("Expected '<exp>' but reached the end".to_string()),
+        Some(unexpected) => Err(format!("Expected '<exp>' but found '{}'", unexpected)),
     }
 }
 
@@ -184,11 +206,16 @@ fn expect(expected_token: &Token, tokens: &mut Iter<Token>) -> Result<(), String
 #[cfg(test)]
 mod test {
     use crate::{
-        ast::{FunctionDefinition, Statement, parse_exp, parse_function, parse_statement},
-        lex::Keyword::{Int, Return, Void},
-        lex::Token::{
-            CloseBrace, CloseParenthesis, Constant, Identifier, Keyword, OpenBrace,
-            OpenParenthesis, SemiColon,
+        ast::{
+            Exp, FunctionDefinition, Statement, UnaryOperator, parse_exp, parse_function,
+            parse_statement,
+        },
+        lex::{
+            Keyword::{Int, Return, Void},
+            Token::{
+                CloseBrace, CloseParenthesis, Constant, Hyphen, Identifier, Keyword, OpenBrace,
+                OpenParenthesis, SemiColon, Tilde, TwoHyphens,
+            },
         },
     };
 
@@ -213,7 +240,7 @@ mod test {
     fn invalid_expression() {
         let tokens = vec![Keyword(Return)];
         if let Err(msg) = parse_exp(&mut tokens.iter()) {
-            assert_eq!(msg, "Expected '<num>' but found 'Keyword(return)'");
+            assert_eq!(msg, "Expected '<exp>' but found 'Keyword(return)'");
         } else {
             panic!("expected an error here");
         }
@@ -222,10 +249,85 @@ mod test {
     fn missing_expression() {
         let tokens = vec![];
         if let Err(msg) = parse_exp(&mut tokens.iter()) {
-            assert_eq!(msg, "Expected '<num>' but reached the end");
+            assert_eq!(msg, "Expected '<exp>' but reached the end");
         } else {
             panic!("expected an error here");
         }
+    }
+
+    #[test]
+    fn unary_hyphen_missing_expression() {
+        let tokens = vec![Hyphen];
+        if let Err(msg) = parse_exp(&mut tokens.iter()) {
+            assert_eq!(msg, "Expected '<exp>' but reached the end");
+        } else {
+            panic!("expected an error here");
+        }
+    }
+
+    #[test]
+    fn unary_tilde_missing_expression() {
+        let tokens = vec![Tilde];
+        if let Err(msg) = parse_exp(&mut tokens.iter()) {
+            assert_eq!(msg, "Expected '<exp>' but reached the end");
+        } else {
+            panic!("expected an error here");
+        }
+    }
+
+    #[test]
+    fn unary_hyphen_valid_expression() {
+        let tokens = vec![Hyphen, Constant(4)];
+        let res = parse_exp(&mut tokens.iter()).unwrap();
+        assert_eq!(
+            res,
+            Exp::Unary(
+                crate::ast::UnaryOperator::Negate,
+                Box::new(Exp::Constant(4))
+            )
+        );
+    }
+
+    #[test]
+    fn expression_parenthesis_missing_expression() {
+        let tokens = vec![OpenParenthesis];
+        if let Err(msg) = parse_exp(&mut tokens.iter()) {
+            assert_eq!(msg, "Expected '<exp>' but reached the end");
+        } else {
+            panic!("expected an error here");
+        }
+    }
+
+    #[test]
+    fn expression_parenthesis_missing_close() {
+        let tokens = vec![OpenParenthesis, Constant(5)];
+        if let Err(msg) = parse_exp(&mut tokens.iter()) {
+            assert_eq!(msg, "Expected ')' but reached the end");
+        } else {
+            panic!("expected an error here");
+        }
+    }
+
+    #[test]
+    fn expression_wrapped_valid() {
+        let tokens = vec![
+            Hyphen,
+            OpenParenthesis,
+            Hyphen,
+            Constant(6),
+            CloseParenthesis,
+        ];
+        let res = parse_exp(&mut tokens.iter()).unwrap();
+        assert_eq!(
+            res,
+            Exp::Unary(
+                UnaryOperator::Negate,
+                Box::new(Exp::Unary(
+                    UnaryOperator::Negate,
+                    Box::new(Exp::Constant(6))
+                ))
+            )
+        );
     }
 
     #[test]

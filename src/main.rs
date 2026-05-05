@@ -132,8 +132,11 @@ fn compile(
     if debug {
         println!("Program ast: \n{}", program);
     }
+    if parse {
+        return Ok(());
+    }
     let asm = program.to_asm();
-    if parse || codegen {
+    if codegen {
         return Ok(());
     }
 
