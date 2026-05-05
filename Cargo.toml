@@ -1,0 +1,9 @@
+[package]
+name = "dcc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.6.1", features = ["derive"] }
+regex = "1.12.3"
+strum = { version = "0.28.0", features = ["derive"] }
