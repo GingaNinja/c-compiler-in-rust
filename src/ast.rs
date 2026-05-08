@@ -75,7 +75,7 @@ impl FunctionDefinition {
 
 #[derive(Debug)]
 pub struct Program {
-    function: FunctionDefinition,
+    pub function: FunctionDefinition,
 }
 
 impl Display for Program {

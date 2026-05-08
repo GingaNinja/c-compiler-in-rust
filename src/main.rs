@@ -1,6 +1,7 @@
 mod asm;
 mod ast;
 mod lex;
+mod tacky;
 
 use std::{
     fs::{self, File, remove_file},
@@ -23,17 +24,21 @@ struct Cli {
     #[arg(short, long, value_name = "lex")]
     lex: bool,
 
-    /// Direct compiler to run the lexer and parser, but stop before assembly generation
+    /// Direct compiler to run the lexer and parser, but stop before generation generation
     #[arg(short, long)]
     parse: bool,
 
-    /// Direct compiler to perform lexing, parsing, and assembly generation, but stop before code emission
+    /// Direct compiler to perform lexing, parsing, tacky generation, and  assembly generation, but stop before code emission
     #[arg(short, long)]
     codegen: bool,
 
     /// Show debugging
     #[arg(short, long)]
     debug: bool,
+
+    /// Direct compiler to perform lexing, parsing, and tacky generation, but stop before assembly generation
+    #[arg(short, long)]
+    tacky: bool,
 }
 
 fn main() -> Result<(), String> {
@@ -54,13 +59,14 @@ fn main() -> Result<(), String> {
         &compiled,
         cli.lex,
         cli.parse,
+        cli.tacky,
         cli.codegen,
         cli.debug,
     )?;
 
     remove_file(&preprocessed).expect("issue deleting pre-processed file");
 
-    if cli.lex || cli.parse || cli.codegen {
+    if cli.lex || cli.parse || cli.codegen || cli.tacky {
         return Ok(());
     }
 
@@ -115,6 +121,7 @@ fn compile(
     output_file: &str,
     lex: bool,
     parse: bool,
+    tacky: bool,
     codegen: bool,
     debug: bool,
 ) -> Result<(), String> {
@@ -135,13 +142,16 @@ fn compile(
     if parse {
         return Ok(());
     }
-    let asm = program.to_asm();
+    let tacky_ast: tacky::Program = program.into();
+    if tacky {
+        return Ok(());
+    }
     if codegen {
         return Ok(());
     }
 
-    let assembly = asm.asm()?;
-    fs::write(&output_file, assembly).expect("couldn't output to file");
+    // let assembly = asm.asm()?;
+    // fs::write(&output_file, assembly).expect("couldn't output to file");
     Ok(())
 }
 
