@@ -146,12 +146,13 @@ fn compile(
     if tacky {
         return Ok(());
     }
+    let asm: asm::Program = tacky_ast.into();
     if codegen {
         return Ok(());
     }
 
-    // let assembly = asm.asm()?;
-    // fs::write(&output_file, assembly).expect("couldn't output to file");
+    let assembly = asm.asm()?;
+    fs::write(&output_file, assembly).expect("couldn't output to file");
     Ok(())
 }
 

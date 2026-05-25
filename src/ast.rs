@@ -38,7 +38,7 @@ impl Statement {
                 };
                 instructions.push(asm::Instruction::Mov {
                     source: left_operand,
-                    dest: asm::Operand::Register,
+                    dest: asm::Operand::Reg(asm::Reg::AX),
                 });
                 instructions.push(asm::Instruction::Ret);
             }
@@ -56,18 +56,6 @@ impl Display for FunctionDefinition {
         match self {
             Self::Function(name, statement) => {
                 write!(f, "name=\"{name}\",\n        body={statement}")
-            }
-        }
-    }
-}
-
-impl FunctionDefinition {
-    pub fn to_asm(&self) -> asm::FunctionDefinition {
-        match self {
-            Self::Function(name, statement) => {
-                let mut instructions = vec![];
-                statement.to_asm(&mut instructions);
-                asm::FunctionDefinition::Function(name.clone(), instructions)
             }
         }
     }
@@ -91,13 +79,6 @@ Program(
 ",
             self.function
         )
-    }
-}
-
-impl Program {
-    pub fn to_asm(&self) -> asm::Program {
-        let function = self.function.to_asm();
-        asm::Program { function }
     }
 }
 
@@ -214,7 +195,7 @@ mod test {
             Keyword::{Int, Return, Void},
             Token::{
                 CloseBrace, CloseParenthesis, Constant, Hyphen, Identifier, Keyword, OpenBrace,
-                OpenParenthesis, SemiColon, Tilde, TwoHyphens,
+                OpenParenthesis, SemiColon, Tilde,
             },
         },
     };

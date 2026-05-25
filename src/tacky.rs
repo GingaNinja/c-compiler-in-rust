@@ -1,24 +1,12 @@
-use std::{
-    cell::LazyCell,
-    env::temp_dir,
-    ops::Add,
-    sync::{LazyLock, OnceLock},
-};
-
-use clap::builder::UnknownArgumentValueParser;
-
-use crate::{
-    asm::Operand,
-    ast::{self, Exp},
-};
+use crate::ast::{self};
 
 pub struct Program {
-    function: Function,
+    pub function: Function,
 }
 
 pub struct Function {
-    identifier: String,
-    body: Vec<Instruction>,
+    pub identifier: String,
+    pub body: Vec<Instruction>,
 }
 
 #[derive(Debug, PartialEq)]
