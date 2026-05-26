@@ -9,19 +9,7 @@ pub struct Program {
 
 impl Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Program(\n    Function(\n        {}\n    )\n)",
-            self.function
-        )
-    }
-}
-
-impl Program {
-    pub fn asm(&self) -> Result<String, String> {
-        let output = self.function.asm()?;
-
-        Ok(output)
+        write!(f, "{}", self.function)
     }
 }
 
@@ -124,25 +112,14 @@ impl Display for FunctionDefinition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Function(name, instructions) => {
-                write!(f, "name=\"{name}\",\n        body={instructions:?}")
-            }
-        }
-    }
-}
-
-impl FunctionDefinition {
-    pub fn asm(&self) -> Result<String, String> {
-        let output = match self {
-            FunctionDefinition::Function(name, instructions) => {
-                let listing: Vec<_> = instructions.iter().map(|i| i.asm()).collect();
-                format!(
+                let listing: Vec<String> = instructions.iter().map(|i| i.to_string()).collect();
+                write!(
+                    f,
                     "\t.globl _{name}\n_{name}:\n\tpushq\t%rbp\n\tmovq\t%rsp, %rbp\n{}",
                     listing.join("\n")
                 )
             }
-        };
-
-        Ok(output)
+        }
     }
 }
 
@@ -182,16 +159,20 @@ impl Instruction {
             }
         }
     }
+}
 
-    pub fn asm(&self) -> String {
+impl Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Instruction::Ret => "\tmovq %rbp, %rsp\n\tpopq %rbp\n\tret".to_string(),
+            Instruction::Ret => write!(f, "\tmovq\t%rbp, %rsp\n\tpopq\t%rbp\n\tret"),
             Instruction::Mov {
                 source: left,
                 dest: right,
-            } => format!("\tmovl {}, {}", left.asm(), right.asm()),
-            Instruction::Unary { operator, dest } => format!("\t{} {}", operator.asm(), dest.asm()),
-            Instruction::AllocateStack(int) => format!("\tsubq ${}, %rsp", int),
+            } => write!(f, "\tmovl\t{}, {}", left, right),
+            Instruction::Unary { operator, dest } => {
+                write!(f, "\t{}\t{}", operator, dest)
+            }
+            Instruction::AllocateStack(int) => write!(f, "\tsubq\t${}, %rsp", int),
         }
     }
 }
@@ -202,11 +183,11 @@ pub enum UnaryOperator {
     Not,
 }
 
-impl UnaryOperator {
-    pub fn asm(&self) -> String {
+impl Display for UnaryOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UnaryOperator::Neg => "negl".to_string(),
-            UnaryOperator::Not => "notl".to_string(),
+            UnaryOperator::Neg => write!(f, "negl"),
+            UnaryOperator::Not => write!(f, "notl"),
         }
     }
 }
@@ -243,16 +224,16 @@ pub enum Reg {
     R10,
 }
 
-impl Operand {
-    pub fn asm(&self) -> String {
+impl Display for Operand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Operand::Reg(reg) => match reg {
-                Reg::AX => "%eax".to_string(),
-                Reg::R10 => "%r10d".to_string(),
+                Reg::AX => write!(f, "%eax"),
+                Reg::R10 => write!(f, "%r10d"),
             },
-            Operand::Imm(num) => format!("${}", num),
-            Operand::Stack(num) => format!("{}(%rbp)", num),
-            Operand::Pseudo(_) => "".to_string(),
+            Operand::Imm(num) => write!(f, "${}", num),
+            Operand::Stack(num) => write!(f, "{}(%rbp)", num),
+            Operand::Pseudo(num) => write!(f, "pseudo({})", num),
         }
     }
 }

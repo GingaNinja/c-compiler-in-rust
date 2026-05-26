@@ -28,6 +28,10 @@ struct Cli {
     #[arg(short, long)]
     parse: bool,
 
+    /// Perform lexing, parsing, tacky generation, assembly generation, code emission, but stop before running the assembler
+    #[arg(short, long)]
+    assembly: bool,
+
     /// Direct compiler to perform lexing, parsing, tacky generation, and  assembly generation, but stop before code emission
     #[arg(short, long)]
     codegen: bool,
@@ -66,7 +70,7 @@ fn main() -> Result<(), String> {
 
     remove_file(&preprocessed).expect("issue deleting pre-processed file");
 
-    if cli.lex || cli.parse || cli.codegen || cli.tacky {
+    if cli.lex || cli.parse || cli.codegen || cli.tacky || cli.assembly {
         return Ok(());
     }
 
@@ -151,8 +155,10 @@ fn compile(
         return Ok(());
     }
 
-    let assembly = asm.asm()?;
-    fs::write(&output_file, assembly).expect("couldn't output to file");
+    if debug {
+        println!("asm:\n{}", asm);
+    }
+    fs::write(&output_file, asm.to_string()).expect("couldn't output to file");
     Ok(())
 }
 
