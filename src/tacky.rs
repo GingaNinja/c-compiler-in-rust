@@ -88,6 +88,7 @@ fn emit_tacky(exp: ast::Exp, instructions: &mut Vec<Instruction>, var_count: &mu
             });
             dst
         }
+        _ => todo!(),
     }
 }
 

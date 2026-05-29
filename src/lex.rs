@@ -2,6 +2,8 @@ use regex::Regex;
 use std::fmt::Display;
 use strum::EnumProperty;
 
+use crate::DccError;
+
 #[derive(Debug, PartialEq, Clone, EnumProperty)]
 pub enum Keyword {
     #[strum(props(Str = "int"))]
@@ -23,7 +25,7 @@ impl Display for Keyword {
     }
 }
 
-#[derive(Debug, PartialEq, EnumProperty)]
+#[derive(Debug, PartialEq, EnumProperty, Clone)]
 pub enum Token {
     Keyword(Keyword),
     Identifier(String),
@@ -44,6 +46,14 @@ pub enum Token {
     Hyphen,
     #[strum(props(Str = "--"))]
     TwoHyphens,
+    #[strum(props(Str = "+"))]
+    Plus,
+    #[strum(props(Str = "*"))]
+    Asterisk,
+    #[strum(props(Str = "/"))]
+    ForwardSlash,
+    #[strum(props(Str = "%"))]
+    Percent,
 }
 
 impl Display for Token {
@@ -63,7 +73,7 @@ impl Display for Token {
     }
 }
 
-pub fn lex_source(input: &str) -> Result<Vec<Token>, String> {
+pub fn lex_source(input: &str) -> Result<Vec<Token>, DccError> {
     let keyword_map = vec![
         ("int", Keyword::Int),
         ("void", Keyword::Void),
@@ -86,6 +96,13 @@ pub fn lex_source(input: &str) -> Result<Vec<Token>, String> {
             Regex::new(r"^\)").unwrap(),
             Box::new(|_| Token::CloseParenthesis),
         ),
+        (Regex::new(r"^\+").unwrap(), Box::new(|_| Token::Plus)),
+        (
+            Regex::new(r"^\/").unwrap(),
+            Box::new(|_| Token::ForwardSlash),
+        ),
+        (Regex::new(r"^\*").unwrap(), Box::new(|_| Token::Asterisk)),
+        (Regex::new(r"^%").unwrap(), Box::new(|_| Token::Percent)),
         (Regex::new(r"^\{").unwrap(), Box::new(|_| Token::OpenBrace)),
         (Regex::new(r"^\}").unwrap(), Box::new(|_| Token::CloseBrace)),
         (Regex::new(r"^;").unwrap(), Box::new(|_| Token::SemiColon)),
@@ -134,12 +151,15 @@ pub fn lex_source(input: &str) -> Result<Vec<Token>, String> {
             pos += found.end();
         } else {
             if let Some(found) = catch_invalid.find(input) {
-                return Err(format!(
-                    "invalid input, char {pos} - {}",
-                    found.as_str().trim_end()
-                ));
+                return Err(DccError::InvalidInputChar {
+                    pos,
+                    found_char: found.as_str().trim_end().to_string(),
+                });
             } else {
-                return Err(format!("invalid input, char {pos} - {}", &input[0..]));
+                return Err(DccError::InvalidInputChar {
+                    pos,
+                    found_char: input[0..].into(),
+                });
             }
         }
 
@@ -155,9 +175,10 @@ pub fn lex_source(input: &str) -> Result<Vec<Token>, String> {
 #[cfg(test)]
 mod test {
     use crate::lex::{
-        Keyword::Int, Keyword::Return, Keyword::Void, Token::CloseBrace, Token::CloseParenthesis,
-        Token::Constant, Token::Identifier, Token::Keyword, Token::OpenBrace,
-        Token::OpenParenthesis, Token::SemiColon, Token::TwoHyphens, lex_source,
+        Keyword::Int, Keyword::Return, Keyword::Void, Token::Asterisk, Token::CloseBrace,
+        Token::CloseParenthesis, Token::Constant, Token::ForwardSlash, Token::Identifier,
+        Token::Keyword, Token::OpenBrace, Token::OpenParenthesis, Token::Percent, Token::Plus,
+        Token::SemiColon, Token::TwoHyphens, lex_source,
     };
 
     #[test]
@@ -199,7 +220,7 @@ mod test {
     fn invalid_char() {
         let input = "main ! something else";
         match lex_source(&input) {
-            Err(msg) => assert_eq!(msg, "invalid input, char 6 - !"),
+            Err(err) => assert_eq!(err.to_string(), "invalid input, char 6 - !"),
             Ok(_) => panic!("expecting failure here"),
         }
     }
@@ -216,6 +237,13 @@ mod test {
         let input = "2";
         let tokens = lex_source(&input).unwrap();
         assert_eq!(tokens, vec![Constant(2)]);
+    }
+
+    #[test]
+    fn plus_forwardslash_asterisk_percent() {
+        let input = "+/*%";
+        let tokens = lex_source(&input).unwrap();
+        assert_eq!(tokens, vec![Plus, ForwardSlash, Asterisk, Percent]);
     }
 
     #[test]

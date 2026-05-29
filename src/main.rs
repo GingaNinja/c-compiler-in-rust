@@ -1,5 +1,6 @@
 mod asm;
 mod ast;
+mod error;
 mod lex;
 mod tacky;
 
@@ -12,7 +13,7 @@ use std::{
 
 use clap::Parser;
 
-use crate::{ast::parse_program, lex::lex_source};
+use crate::{ast::parse_program, error::DccError, lex::lex_source};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -45,7 +46,7 @@ struct Cli {
     tacky: bool,
 }
 
-fn main() -> Result<(), String> {
+fn main() -> Result<(), DccError> {
     let cli = Cli::parse();
 
     println!("{} is the input file", cli.input_file);
@@ -81,7 +82,7 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn create_exe(input_file: &str, output_file: &str) -> Result<(), String> {
+fn create_exe(input_file: &str, output_file: &str) -> Result<(), DccError> {
     let output = Command::new("gcc")
         .args([input_file, "-o", output_file])
         .output()
@@ -97,11 +98,11 @@ fn create_exe(input_file: &str, output_file: &str) -> Result<(), String> {
     if output.status.success() {
         Ok(())
     } else {
-        Err("issue running pre-process".to_string())
+        Err(DccError::ExeCreate)
     }
 }
 
-fn preprocess(input_file: &str, output_file: &str) -> Result<(), String> {
+fn preprocess(input_file: &str, output_file: &str) -> Result<(), DccError> {
     let output = Command::new("gcc")
         .args(["-E", "-P", input_file, "-o", output_file])
         .output()
@@ -116,7 +117,7 @@ fn preprocess(input_file: &str, output_file: &str) -> Result<(), String> {
     if output.status.success() {
         Ok(())
     } else {
-        Err("issue running pre-process".to_string())
+        Err(DccError::PreProcess)
     }
 }
 
@@ -128,7 +129,7 @@ fn compile(
     tacky: bool,
     codegen: bool,
     debug: bool,
-) -> Result<(), String> {
+) -> Result<(), DccError> {
     let mut input_file = File::open(input_file).expect("unable to open input file");
     let mut input = String::new();
     input_file
