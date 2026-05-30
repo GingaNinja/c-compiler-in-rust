@@ -14,26 +14,6 @@ pub enum DccError {
 impl std::fmt::Debug for DccError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_string())
-        // match self {
-        //     Self::PreProcess => write!(f, "issue running pre-process"),
-        //     Self::ExeCreate => write!(f, "issue creating the exe"),
-        //     Self::ExtraTokens => write!(f, "extra tokens at the end of the file"),
-        //     Self::ExpectedToken { actual, expected } => {
-        //         write!(f, "Expected '{expected}' but found '{actual}'")
-        //     }
-        //     Self::ExpectedMoreTokens { expected } => {
-        //         write!(f, "Expected '{expected}' but reached the end")
-        //     }
-        //     Self::InvalidInputChar { pos, found_char } => {
-        //         write!(f, "invalid input, char {pos} - {found_char}")
-        //     }
-        //     Self::ExpectedKeyword { actual, expected } => {
-        //         write!(f, "Expected '{expected}' but found '{actual}'")
-        //     }
-        //     Self::ExpectedMoreKeywords { expected } => {
-        //         write!(f, "Expected '{expected}' but reached the end")
-        //     }
-        // }
     }
 }
 
