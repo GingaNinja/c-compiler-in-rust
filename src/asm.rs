@@ -157,6 +157,7 @@ impl Instruction {
                     dest: dst.into(),
                 });
             }
+            _ => todo!(),
         }
     }
 }

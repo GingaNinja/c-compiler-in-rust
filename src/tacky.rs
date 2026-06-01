@@ -17,6 +17,12 @@ pub enum Instruction {
         src: Val,
         dst: Val,
     },
+    Binary {
+        operator: BinaryOperator,
+        src1: Val,
+        src2: Val,
+        dst: Val,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -31,11 +37,32 @@ pub enum UnaryOperator {
     Negate,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+}
+
 impl From<ast::UnaryOperator> for UnaryOperator {
     fn from(value: ast::UnaryOperator) -> Self {
         match value {
             ast::UnaryOperator::Complement => UnaryOperator::Complement,
             ast::UnaryOperator::Negate => UnaryOperator::Negate,
+        }
+    }
+}
+
+impl From<ast::BinaryOperator> for BinaryOperator {
+    fn from(value: ast::BinaryOperator) -> Self {
+        match value {
+            ast::BinaryOperator::Add => BinaryOperator::Add,
+            ast::BinaryOperator::Subtract => BinaryOperator::Subtract,
+            ast::BinaryOperator::Multiply => BinaryOperator::Multiply,
+            ast::BinaryOperator::Divide => BinaryOperator::Divide,
+            ast::BinaryOperator::Remainder => BinaryOperator::Remainder,
         }
     }
 }
@@ -88,7 +115,20 @@ fn emit_tacky(exp: ast::Exp, instructions: &mut Vec<Instruction>, var_count: &mu
             });
             dst
         }
-        _ => todo!(),
+        ast::Exp::Binary(op, e1, e2) => {
+            let v1 = emit_tacky(*e1, instructions, var_count);
+            let v2 = emit_tacky(*e2, instructions, var_count);
+            let dst_name = format!("tmp.{}", var_count);
+            *var_count += 1;
+            let dst = Val::Var(dst_name);
+            instructions.push(Instruction::Binary {
+                operator: op.into(),
+                src1: v1,
+                src2: v2,
+                dst: dst.clone(),
+            });
+            dst
+        }
     }
 }
 
