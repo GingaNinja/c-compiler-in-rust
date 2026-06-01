@@ -111,6 +111,9 @@ fn parse_binop(tokens: &mut Peekable<Iter<Token>>) -> Result<BinaryOperator, Dcc
     match tokens.next() {
         Some(Token::Plus) => Ok(BinaryOperator::Add),
         Some(Token::Hyphen) => Ok(BinaryOperator::Subtract),
+        Some(Token::Asterisk) => Ok(BinaryOperator::Multiply),
+        Some(Token::ForwardSlash) => Ok(BinaryOperator::Divide),
+        Some(Token::Percent) => Ok(BinaryOperator::Remainder),
         Some(other) => Err(DccError::ExpectedToken {
             actual: other.clone(),
             expected: "<op>".into(),
@@ -130,7 +133,7 @@ pub fn parse_factor(tokens: &mut Peekable<Iter<Token>>) -> Result<Exp, DccError>
             Ok(Exp::Unary(unary_op, Box::new(inner_exp)))
         }
         Some(Token::OpenParenthesis) => {
-            let exp = parse_exp(tokens)?;
+            let exp = parse_exp(tokens, 0)?;
             expect(&Token::CloseParenthesis, tokens)?;
             Ok(exp)
         }
@@ -144,20 +147,27 @@ pub fn parse_factor(tokens: &mut Peekable<Iter<Token>>) -> Result<Exp, DccError>
     }
 }
 
-pub fn parse_exp(tokens: &mut Peekable<Iter<Token>>) -> Result<Exp, DccError> {
+fn get_operator_precedence(token: &Token) -> i32 {
+    match token {
+        Token::Plus => 45,
+        Token::Hyphen => 45,
+        Token::Asterisk => 50,
+        Token::ForwardSlash => 50,
+        Token::Percent => 50,
+        _ => -1,
+    }
+}
+
+pub fn parse_exp(tokens: &mut Peekable<Iter<Token>>, min_prec: i32) -> Result<Exp, DccError> {
     let mut left = parse_factor(tokens)?;
     while match tokens.peek() {
-        Some(token) if **token == Token::Plus || **token == Token::Hyphen => {
-            println!("a plus");
-            true
-        }
-        _ => {
-            println!("peeking at token");
-            false
-        }
+        Some(token) if get_operator_precedence(*token) >= min_prec => true,
+        _ => false,
     } {
+        let token = *tokens.peek().unwrap();
         let operator = parse_binop(tokens)?;
-        let right = parse_factor(tokens)?;
+
+        let right = parse_exp(tokens, get_operator_precedence(token) + 1)?;
         left = Exp::Binary(operator, Box::new(left), Box::new(right));
     }
     Ok(left)
@@ -165,7 +175,7 @@ pub fn parse_exp(tokens: &mut Peekable<Iter<Token>>) -> Result<Exp, DccError> {
 
 pub fn parse_statement(tokens: &mut Peekable<Iter<Token>>) -> Result<Statement, DccError> {
     expect(&Token::Keyword(Keyword::Return), tokens)?;
-    let exp = parse_exp(tokens)?;
+    let exp = parse_exp(tokens, 0)?;
     expect(&Token::SemiColon, tokens)?;
 
     Ok(Statement::Return(exp))
@@ -234,8 +244,6 @@ fn expect(expected_token: &Token, tokens: &mut Peekable<Iter<Token>>) -> Result<
 
 #[cfg(test)]
 mod test {
-    use std::fmt::Binary;
-
     use crate::{
         ast::{
             BinaryOperator, Exp, FunctionDefinition, Statement, UnaryOperator, parse_exp,
@@ -271,7 +279,7 @@ mod test {
     #[test]
     fn invalid_expression() {
         let tokens = vec![Keyword(Return)];
-        if let Err(err) = parse_exp(&mut tokens.iter().peekable()) {
+        if let Err(err) = parse_exp(&mut tokens.iter().peekable(), 0) {
             assert_eq!(
                 err.to_string(),
                 "Expected '<exp>' but found 'Keyword(return)'"
@@ -283,7 +291,7 @@ mod test {
     #[test]
     fn missing_expression() {
         let tokens = vec![];
-        if let Err(err) = parse_exp(&mut tokens.iter().peekable()) {
+        if let Err(err) = parse_exp(&mut tokens.iter().peekable(), 0) {
             assert_eq!(err.to_string(), "Expected '<exp>' but reached the end");
         } else {
             panic!("expected an error here");
@@ -310,7 +318,7 @@ mod test {
             Constant(2),
             CloseParenthesis,
         ];
-        let res = parse_exp(&mut tokens.iter().peekable()).unwrap();
+        let res = parse_exp(&mut tokens.iter().peekable(), 0).unwrap();
         assert_eq!(
             res,
             Exp::Unary(
@@ -337,7 +345,7 @@ mod test {
     #[test]
     fn constant_valid_factor() {
         let tokens = vec![Constant(5)];
-        let res = parse_exp(&mut tokens.iter().peekable()).unwrap();
+        let res = parse_exp(&mut tokens.iter().peekable(), 0).unwrap();
         assert_eq!(res, Exp::Constant(5));
     }
 
@@ -387,7 +395,7 @@ mod test {
     #[test]
     fn binary_expression_missing_right() {
         let tokens = vec![Constant(1), Token::Plus];
-        if let Err(err) = parse_exp(&mut tokens.iter().peekable()) {
+        if let Err(err) = parse_exp(&mut tokens.iter().peekable(), 0) {
             assert_eq!(err.to_string(), "Expected '<exp>' but reached the end");
         } else {
             panic!("expected an error here");
@@ -395,9 +403,46 @@ mod test {
     }
 
     #[test]
+    fn binary_precedence() {
+        // (1 + (2 / 3)) - (4 * 5)
+        let tokens = vec![
+            Constant(1),
+            Token::Plus,
+            Constant(2),
+            Token::ForwardSlash,
+            Constant(3),
+            Token::Hyphen,
+            Constant(4),
+            Token::Asterisk,
+            Constant(5),
+        ];
+        let res = parse_exp(&mut tokens.iter().peekable(), 0).unwrap();
+        assert_eq!(
+            res,
+            Exp::Binary(
+                BinaryOperator::Subtract,
+                Box::new(Exp::Binary(
+                    BinaryOperator::Add,
+                    Box::new(Exp::Constant(1)),
+                    Box::new(Exp::Binary(
+                        BinaryOperator::Divide,
+                        Box::new(Exp::Constant(2)),
+                        Box::new(Exp::Constant(3))
+                    ))
+                )),
+                Box::new(Exp::Binary(
+                    BinaryOperator::Multiply,
+                    Box::new(Exp::Constant(4)),
+                    Box::new(Exp::Constant(5))
+                ))
+            )
+        )
+    }
+
+    #[test]
     fn valid_binary_expression() {
         let tokens = vec![Constant(1), Token::Hyphen, Constant(2)];
-        let res = parse_exp(&mut tokens.iter().peekable()).unwrap();
+        let res = parse_exp(&mut tokens.iter().peekable(), 0).unwrap();
         assert_eq!(
             res,
             Exp::Binary(
