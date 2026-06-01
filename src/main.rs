@@ -140,7 +140,7 @@ fn compile(
         return Ok(());
     }
 
-    let program = parse_program(&mut tokens.iter())?;
+    let program = parse_program(&mut tokens.iter().peekable())?;
     if debug {
         println!("Program ast: \n{}", program);
     }

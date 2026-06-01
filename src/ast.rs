@@ -1,3 +1,4 @@
+use std::iter::Peekable;
 use std::{fmt::Display, slice::Iter};
 
 use crate::error::DccError;
@@ -6,8 +7,8 @@ use crate::lex::{Keyword, Token};
 #[derive(Debug, PartialEq)]
 pub enum Exp {
     Constant(i32),
-    Unary(UnaryOperator, Box<Exp>),
     Binary(BinaryOperator, Box<Exp>, Box<Exp>),
+    Unary(UnaryOperator, Box<Exp>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -74,7 +75,7 @@ Program(
     }
 }
 
-pub fn parse_program(tokens: &mut Iter<Token>) -> Result<Program, DccError> {
+pub fn parse_program(tokens: &mut Peekable<Iter<Token>>) -> Result<Program, DccError> {
     let function = parse_function(tokens)?;
     if let Some(_) = tokens.next() {
         Err(DccError::ExtraTokens)
@@ -83,7 +84,7 @@ pub fn parse_program(tokens: &mut Iter<Token>) -> Result<Program, DccError> {
     }
 }
 
-pub fn parse_function(tokens: &mut Iter<Token>) -> Result<FunctionDefinition, DccError> {
+pub fn parse_function(tokens: &mut Peekable<Iter<Token>>) -> Result<FunctionDefinition, DccError> {
     expect(&Token::Keyword(Keyword::Int), tokens)?;
     let ident = parse_ident(tokens)?;
     expect(&Token::OpenParenthesis, tokens)?;
@@ -106,12 +107,26 @@ fn parse_unop(token: &Token) -> Result<UnaryOperator, DccError> {
     }
 }
 
-pub fn parse_exp(tokens: &mut Iter<Token>) -> Result<Exp, DccError> {
+fn parse_binop(tokens: &mut Peekable<Iter<Token>>) -> Result<BinaryOperator, DccError> {
+    match tokens.next() {
+        Some(Token::Plus) => Ok(BinaryOperator::Add),
+        Some(Token::Hyphen) => Ok(BinaryOperator::Subtract),
+        Some(other) => Err(DccError::ExpectedToken {
+            actual: other.clone(),
+            expected: "<op>".into(),
+        }),
+        None => Err(DccError::ExpectedMoreTokens {
+            expected: "<op>".into(),
+        }),
+    }
+}
+
+pub fn parse_factor(tokens: &mut Peekable<Iter<Token>>) -> Result<Exp, DccError> {
     match tokens.next() {
         Some(Token::Constant(val)) => Ok(Exp::Constant(*val)),
         Some(token) if token == &Token::Hyphen || token == &Token::Tilde => {
             let unary_op = parse_unop(token)?;
-            let inner_exp = parse_exp(tokens)?;
+            let inner_exp = parse_factor(tokens)?;
             Ok(Exp::Unary(unary_op, Box::new(inner_exp)))
         }
         Some(Token::OpenParenthesis) => {
@@ -129,7 +144,26 @@ pub fn parse_exp(tokens: &mut Iter<Token>) -> Result<Exp, DccError> {
     }
 }
 
-pub fn parse_statement(tokens: &mut Iter<Token>) -> Result<Statement, DccError> {
+pub fn parse_exp(tokens: &mut Peekable<Iter<Token>>) -> Result<Exp, DccError> {
+    let mut left = parse_factor(tokens)?;
+    while match tokens.peek() {
+        Some(token) if **token == Token::Plus || **token == Token::Hyphen => {
+            println!("a plus");
+            true
+        }
+        _ => {
+            println!("peeking at token");
+            false
+        }
+    } {
+        let operator = parse_binop(tokens)?;
+        let right = parse_factor(tokens)?;
+        left = Exp::Binary(operator, Box::new(left), Box::new(right));
+    }
+    Ok(left)
+}
+
+pub fn parse_statement(tokens: &mut Peekable<Iter<Token>>) -> Result<Statement, DccError> {
     expect(&Token::Keyword(Keyword::Return), tokens)?;
     let exp = parse_exp(tokens)?;
     expect(&Token::SemiColon, tokens)?;
@@ -137,7 +171,7 @@ pub fn parse_statement(tokens: &mut Iter<Token>) -> Result<Statement, DccError> 
     Ok(Statement::Return(exp))
 }
 
-fn parse_ident(tokens: &mut Iter<Token>) -> Result<String, DccError> {
+fn parse_ident(tokens: &mut Peekable<Iter<Token>>) -> Result<String, DccError> {
     if let Some(actual) = tokens.next() {
         if let Token::Identifier(ident) = actual {
             Ok(ident.clone())
@@ -154,7 +188,10 @@ fn parse_ident(tokens: &mut Iter<Token>) -> Result<String, DccError> {
     }
 }
 
-fn expect_keyword(expected_keyword: &Keyword, tokens: &mut Iter<Token>) -> Result<(), DccError> {
+fn expect_keyword(
+    expected_keyword: &Keyword,
+    tokens: &mut Peekable<Iter<Token>>,
+) -> Result<(), DccError> {
     if let Some(actual) = tokens.next() {
         if let Token::Keyword(keyword) = actual {
             if keyword != expected_keyword {
@@ -178,7 +215,7 @@ fn expect_keyword(expected_keyword: &Keyword, tokens: &mut Iter<Token>) -> Resul
     }
 }
 
-fn expect(expected_token: &Token, tokens: &mut Iter<Token>) -> Result<(), DccError> {
+fn expect(expected_token: &Token, tokens: &mut Peekable<Iter<Token>>) -> Result<(), DccError> {
     if let Some(actual) = tokens.next() {
         if actual != expected_token {
             Err(DccError::ExpectedToken {
@@ -197,16 +234,18 @@ fn expect(expected_token: &Token, tokens: &mut Iter<Token>) -> Result<(), DccErr
 
 #[cfg(test)]
 mod test {
+    use std::fmt::Binary;
+
     use crate::{
         ast::{
-            Exp, FunctionDefinition, Statement, UnaryOperator, parse_exp, parse_function,
-            parse_statement,
+            BinaryOperator, Exp, FunctionDefinition, Statement, UnaryOperator, parse_exp,
+            parse_factor, parse_function, parse_statement,
         },
         lex::{
             Keyword::{Int, Return, Void},
             Token::{
-                CloseBrace, CloseParenthesis, Constant, Hyphen, Identifier, Keyword, OpenBrace,
-                OpenParenthesis, SemiColon, Tilde,
+                self, CloseBrace, CloseParenthesis, Constant, Hyphen, Identifier, Keyword,
+                OpenBrace, OpenParenthesis, Plus, SemiColon, Tilde,
             },
         },
     };
@@ -214,14 +253,15 @@ mod test {
     #[test]
     fn valid_statement() {
         let tokens = vec![Keyword(Return), Constant(2), SemiColon];
-        let statement = parse_statement(&mut tokens.iter()).unwrap();
-        assert_eq!(statement, Statement::Return(crate::ast::Exp::Constant(2)));
+        let statement = parse_statement(&mut tokens.iter().peekable()).unwrap();
+        assert_eq!(statement, Statement::Return(Exp::Constant(2)));
     }
+
     #[test]
     fn invalid_statement() {
         let tokens = vec![Keyword(Return), Constant(2)];
 
-        if let Err(err) = parse_statement(&mut tokens.iter()) {
+        if let Err(err) = parse_statement(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected ';' but reached the end");
         } else {
             panic!("expected an error here");
@@ -231,7 +271,7 @@ mod test {
     #[test]
     fn invalid_expression() {
         let tokens = vec![Keyword(Return)];
-        if let Err(err) = parse_exp(&mut tokens.iter()) {
+        if let Err(err) = parse_exp(&mut tokens.iter().peekable()) {
             assert_eq!(
                 err.to_string(),
                 "Expected '<exp>' but found 'Keyword(return)'"
@@ -243,7 +283,7 @@ mod test {
     #[test]
     fn missing_expression() {
         let tokens = vec![];
-        if let Err(err) = parse_exp(&mut tokens.iter()) {
+        if let Err(err) = parse_exp(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected '<exp>' but reached the end");
         } else {
             panic!("expected an error here");
@@ -253,17 +293,41 @@ mod test {
     #[test]
     fn unary_hyphen_missing_expression() {
         let tokens = vec![Hyphen];
-        if let Err(err) = parse_exp(&mut tokens.iter()) {
+        if let Err(err) = parse_factor(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected '<exp>' but reached the end");
         } else {
             panic!("expected an error here");
         }
+    }
+
+    #[test]
+    fn unary_with_binop() {
+        let tokens = vec![
+            Tilde,
+            OpenParenthesis,
+            Constant(1),
+            Plus,
+            Constant(2),
+            CloseParenthesis,
+        ];
+        let res = parse_exp(&mut tokens.iter().peekable()).unwrap();
+        assert_eq!(
+            res,
+            Exp::Unary(
+                UnaryOperator::Complement,
+                Box::new(Exp::Binary(
+                    BinaryOperator::Add,
+                    Box::new(Exp::Constant(1)),
+                    Box::new(Exp::Constant(2))
+                ))
+            )
+        );
     }
 
     #[test]
     fn unary_tilde_missing_expression() {
         let tokens = vec![Tilde];
-        if let Err(err) = parse_exp(&mut tokens.iter()) {
+        if let Err(err) = parse_factor(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected '<exp>' but reached the end");
         } else {
             panic!("expected an error here");
@@ -271,9 +335,16 @@ mod test {
     }
 
     #[test]
+    fn constant_valid_factor() {
+        let tokens = vec![Constant(5)];
+        let res = parse_exp(&mut tokens.iter().peekable()).unwrap();
+        assert_eq!(res, Exp::Constant(5));
+    }
+
+    #[test]
     fn unary_hyphen_valid_expression() {
         let tokens = vec![Hyphen, Constant(4)];
-        let res = parse_exp(&mut tokens.iter()).unwrap();
+        let res = parse_factor(&mut tokens.iter().peekable()).unwrap();
         assert_eq!(
             res,
             Exp::Unary(
@@ -286,7 +357,17 @@ mod test {
     #[test]
     fn expression_parenthesis_missing_expression() {
         let tokens = vec![OpenParenthesis];
-        if let Err(err) = parse_exp(&mut tokens.iter()) {
+        if let Err(err) = parse_factor(&mut tokens.iter().peekable()) {
+            assert_eq!(err.to_string(), "Expected '<exp>' but reached the end");
+        } else {
+            panic!("expected an error here");
+        }
+    }
+
+    #[test]
+    fn factor_missing_tokens() {
+        let tokens = vec![];
+        if let Err(err) = parse_factor(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected '<exp>' but reached the end");
         } else {
             panic!("expected an error here");
@@ -296,11 +377,35 @@ mod test {
     #[test]
     fn expression_parenthesis_missing_close() {
         let tokens = vec![OpenParenthesis, Constant(5)];
-        if let Err(err) = parse_exp(&mut tokens.iter()) {
+        if let Err(err) = parse_factor(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected ')' but reached the end");
         } else {
             panic!("expected an error here");
         }
+    }
+
+    #[test]
+    fn binary_expression_missing_right() {
+        let tokens = vec![Constant(1), Token::Plus];
+        if let Err(err) = parse_exp(&mut tokens.iter().peekable()) {
+            assert_eq!(err.to_string(), "Expected '<exp>' but reached the end");
+        } else {
+            panic!("expected an error here");
+        }
+    }
+
+    #[test]
+    fn valid_binary_expression() {
+        let tokens = vec![Constant(1), Token::Hyphen, Constant(2)];
+        let res = parse_exp(&mut tokens.iter().peekable()).unwrap();
+        assert_eq!(
+            res,
+            Exp::Binary(
+                crate::ast::BinaryOperator::Subtract,
+                Box::new(Exp::Constant(1)),
+                Box::new(Exp::Constant(2)),
+            )
+        );
     }
 
     #[test]
@@ -312,7 +417,7 @@ mod test {
             Constant(6),
             CloseParenthesis,
         ];
-        let res = parse_exp(&mut tokens.iter()).unwrap();
+        let res = parse_factor(&mut tokens.iter().peekable()).unwrap();
         assert_eq!(
             res,
             Exp::Unary(
@@ -328,7 +433,7 @@ mod test {
     #[test]
     fn function_missing_int_keyword() {
         let tokens = vec![Identifier("main".to_string())];
-        if let Err(err) = parse_function(&mut tokens.iter()) {
+        if let Err(err) = parse_function(&mut tokens.iter().peekable()) {
             assert_eq!(
                 err.to_string(),
                 "Expected 'Keyword(int)' but found 'Identifier(main)'"
@@ -342,7 +447,7 @@ mod test {
     fn function_missing_identifier() {
         let tokens = vec![Keyword(Int), Keyword(Int)];
 
-        if let Err(err) = parse_function(&mut tokens.iter()) {
+        if let Err(err) = parse_function(&mut tokens.iter().peekable()) {
             assert_eq!(
                 err.to_string(),
                 "Expected '<identifier>' but found 'Keyword(int)'"
@@ -356,7 +461,7 @@ mod test {
     fn function_missing_open_parenthesis() {
         let tokens = vec![Keyword(Int), Identifier("thing".to_string()), Keyword(Int)];
 
-        if let Err(err) = parse_function(&mut tokens.iter()) {
+        if let Err(err) = parse_function(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected '(' but found 'Keyword(int)'");
         } else {
             panic!("expected an error here");
@@ -372,7 +477,7 @@ mod test {
             OpenParenthesis,
         ];
 
-        if let Err(err) = parse_function(&mut tokens.iter()) {
+        if let Err(err) = parse_function(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected 'void' but found '('");
         } else {
             panic!("expected an error here");
@@ -389,7 +494,7 @@ mod test {
             OpenParenthesis,
         ];
 
-        if let Err(err) = parse_function(&mut tokens.iter()) {
+        if let Err(err) = parse_function(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected ')' but found '('");
         } else {
             panic!("expected an error here");
@@ -406,12 +511,13 @@ mod test {
             CloseParenthesis,
         ];
 
-        if let Err(err) = parse_function(&mut tokens.iter()) {
+        if let Err(err) = parse_function(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected '{' but found ')'");
         } else {
             panic!("expected an error here");
         }
     }
+
     #[test]
     fn function_missing_close_brace() {
         let tokens = vec![
@@ -427,7 +533,7 @@ mod test {
             OpenBrace,
         ];
 
-        if let Err(err) = parse_function(&mut tokens.iter()) {
+        if let Err(err) = parse_function(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected '}' but found '{'");
         } else {
             panic!("expected an error here");
@@ -446,12 +552,13 @@ mod test {
             OpenBrace,
         ];
 
-        if let Err(err) = parse_function(&mut tokens.iter()) {
+        if let Err(err) = parse_function(&mut tokens.iter().peekable()) {
             assert_eq!(err.to_string(), "Expected 'Keyword(return)' but found '{'");
         } else {
             panic!("expected an error here");
         }
     }
+
     #[test]
     fn valid_function() {
         let tokens = vec![
@@ -467,13 +574,10 @@ mod test {
             CloseBrace,
         ];
 
-        let function_definition = parse_function(&mut tokens.iter()).unwrap();
+        let function_definition = parse_function(&mut tokens.iter().peekable()).unwrap();
         assert_eq!(
             function_definition,
-            FunctionDefinition::Function(
-                "thing".to_string(),
-                Statement::Return(crate::ast::Exp::Constant(4))
-            )
+            FunctionDefinition::Function("thing".to_string(), Statement::Return(Exp::Constant(4)))
         );
     }
 }
