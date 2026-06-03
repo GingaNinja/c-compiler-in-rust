@@ -54,6 +54,16 @@ pub enum Token {
     ForwardSlash,
     #[strum(props(Str = "%"))]
     Percent,
+    #[strum(props(Str = "&"))]
+    Ampersand,
+    #[strum(props(Str = "|"))]
+    Pipe,
+    #[strum(props(Str = "^"))]
+    Hat,
+    #[strum(props(Str = "<<"))]
+    DoubleLeft,
+    #[strum(props(Str = ">>"))]
+    DoubleRight,
 }
 
 impl Display for Token {
@@ -109,6 +119,14 @@ pub fn lex_source(input: &str) -> Result<Vec<Token>, DccError> {
         (Regex::new(r"^~").unwrap(), Box::new(|_| Token::Tilde)),
         (Regex::new(r"^-").unwrap(), Box::new(|_| Token::Hyphen)),
         (Regex::new(r"^--").unwrap(), Box::new(|_| Token::TwoHyphens)),
+        (Regex::new(r"^\^").unwrap(), Box::new(|_| Token::Hat)),
+        (Regex::new(r"^\|").unwrap(), Box::new(|_| Token::Pipe)),
+        (Regex::new(r"^&").unwrap(), Box::new(|_| Token::Ampersand)),
+        (Regex::new(r"^<<").unwrap(), Box::new(|_| Token::DoubleLeft)),
+        (
+            Regex::new(r"^>>").unwrap(),
+            Box::new(|_| Token::DoubleRight),
+        ),
     ];
     let mut pos = 1;
     let mut tokens = vec![];
@@ -175,9 +193,10 @@ pub fn lex_source(input: &str) -> Result<Vec<Token>, DccError> {
 #[cfg(test)]
 mod test {
     use crate::lex::{
-        Keyword::Int, Keyword::Return, Keyword::Void, Token::Asterisk, Token::CloseBrace,
-        Token::CloseParenthesis, Token::Constant, Token::ForwardSlash, Token::Identifier,
-        Token::Keyword, Token::OpenBrace, Token::OpenParenthesis, Token::Percent, Token::Plus,
+        Keyword::Int, Keyword::Return, Keyword::Void, Token::Ampersand, Token::Asterisk,
+        Token::CloseBrace, Token::CloseParenthesis, Token::Constant, Token::DoubleLeft,
+        Token::DoubleRight, Token::ForwardSlash, Token::Hat, Token::Identifier, Token::Keyword,
+        Token::OpenBrace, Token::OpenParenthesis, Token::Percent, Token::Pipe, Token::Plus,
         Token::SemiColon, Token::TwoHyphens, lex_source,
     };
 
@@ -268,5 +287,13 @@ mod test {
 
         let tokens = lex_source(&input).unwrap();
         assert_eq!(tokens, vec![TwoHyphens])
+    }
+
+    #[test]
+    fn bitwise() {
+        let input = "^|&<<>>";
+
+        let tokens = lex_source(&input).unwrap();
+        assert_eq!(tokens, vec![Hat, Pipe, Ampersand, DoubleLeft, DoubleRight]);
     }
 }
