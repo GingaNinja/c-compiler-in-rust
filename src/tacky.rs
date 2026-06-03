@@ -1,9 +1,11 @@
 use crate::ast::{self};
 
+#[derive(Debug)]
 pub struct Program {
     pub function: Function,
 }
 
+#[derive(Debug)]
 pub struct Function {
     pub identifier: String,
     pub body: Vec<Instruction>,

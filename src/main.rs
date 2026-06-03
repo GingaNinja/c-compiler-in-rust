@@ -148,6 +148,9 @@ fn compile(
         return Ok(());
     }
     let tacky_ast: tacky::Program = program.into();
+    if debug {
+        println!("Tacky ast: \n{:?}", tacky_ast);
+    }
     if tacky {
         return Ok(());
     }
