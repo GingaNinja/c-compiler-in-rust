@@ -24,6 +24,11 @@ pub enum BinaryOperator {
     Multiply,
     Divide,
     Remainder,
+    BitwiseShiftLeft,
+    BitwiseShiftRight,
+    BitwiseAnd,
+    BitwiseXOR,
+    BitwiseOr,
 }
 
 #[derive(Debug, PartialEq)]
@@ -114,6 +119,11 @@ fn parse_binop(tokens: &mut Peekable<Iter<Token>>) -> Result<BinaryOperator, Dcc
         Some(Token::Asterisk) => Ok(BinaryOperator::Multiply),
         Some(Token::ForwardSlash) => Ok(BinaryOperator::Divide),
         Some(Token::Percent) => Ok(BinaryOperator::Remainder),
+        Some(Token::Pipe) => Ok(BinaryOperator::BitwiseOr),
+        Some(Token::Hat) => Ok(BinaryOperator::BitwiseXOR),
+        Some(Token::Ampersand) => Ok(BinaryOperator::BitwiseAnd),
+        Some(Token::DoubleLeft) => Ok(BinaryOperator::BitwiseShiftLeft),
+        Some(Token::DoubleRight) => Ok(BinaryOperator::BitwiseShiftRight),
         Some(other) => Err(DccError::ExpectedToken {
             actual: other.clone(),
             expected: "<op>".into(),
@@ -149,6 +159,11 @@ pub fn parse_factor(tokens: &mut Peekable<Iter<Token>>) -> Result<Exp, DccError>
 
 fn get_operator_precedence(token: &Token) -> i32 {
     match token {
+        Token::Pipe => 33,
+        Token::Hat => 34,
+        Token::Ampersand => 35,
+        Token::DoubleLeft => 40,
+        Token::DoubleRight => 40,
         Token::Plus => 45,
         Token::Hyphen => 45,
         Token::Asterisk => 50,
@@ -400,6 +415,31 @@ mod test {
         } else {
             panic!("expected an error here");
         }
+    }
+
+    #[test]
+    fn binary_with_bitwise() {
+        // 1 | 2 + 3
+        let tokens = vec![
+            Constant(1),
+            Token::Pipe,
+            Constant(2),
+            Token::Plus,
+            Constant(3),
+        ];
+        let res = parse_exp(&mut tokens.iter().peekable(), 0).unwrap();
+        assert_eq!(
+            res,
+            Exp::Binary(
+                BinaryOperator::BitwiseOr,
+                Box::new(Exp::Constant(1)),
+                Box::new(Exp::Binary(
+                    BinaryOperator::Add,
+                    Box::new(Exp::Constant(2)),
+                    Box::new(Exp::Constant(3))
+                ))
+            )
+        );
     }
 
     #[test]

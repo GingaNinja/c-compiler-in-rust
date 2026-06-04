@@ -26,7 +26,7 @@ pub enum FunctionDefinition {
     Function(String, Vec<Instruction>),
 }
 
-fn check_for_invalid_movs(instructions: &mut Vec<Instruction>) {
+fn check_for_invalid_operands(instructions: &mut Vec<Instruction>) {
     let mut i = 0;
     while i < instructions.len() {
         match instructions[i].clone() {
@@ -48,7 +48,11 @@ fn check_for_invalid_movs(instructions: &mut Vec<Instruction>) {
                 }
             }
             Instruction::Binary { operator, op1, op2 }
-                if operator == BinaryOperator::Add || operator == BinaryOperator::Sub =>
+                if operator == BinaryOperator::Add
+                    || operator == BinaryOperator::Sub
+                    || operator == BinaryOperator::Or
+                    || operator == BinaryOperator::Xor
+                    || operator == BinaryOperator::And =>
             {
                 if let Operand::Stack(_) = op1 {
                     if let Operand::Stack(_) = op2 {
@@ -65,6 +69,24 @@ fn check_for_invalid_movs(instructions: &mut Vec<Instruction>) {
                             },
                         );
                     }
+                }
+            }
+            Instruction::Binary { operator, op1, op2 }
+                if operator == BinaryOperator::Shl || operator == BinaryOperator::Sar =>
+            {
+                if let Operand::Stack(_) = op1 {
+                    instructions[i] = Instruction::Mov {
+                        source: op1.clone(),
+                        dest: Operand::Reg(Reg::CL),
+                    };
+                    instructions.insert(
+                        i + 1,
+                        Instruction::Binary {
+                            operator,
+                            op1: Operand::Reg(Reg::CL),
+                            op2: op2.clone(),
+                        },
+                    );
                 }
             }
             Instruction::Binary { operator, op1, op2 } if operator == BinaryOperator::Mult => {
@@ -171,7 +193,7 @@ impl From<tacky::Function> for FunctionDefinition {
         }
         instructions.insert(0, Instruction::AllocateStack(cur_stack_loc.abs()));
 
-        check_for_invalid_movs(&mut instructions);
+        check_for_invalid_operands(&mut instructions);
 
         Self::Function(value.identifier, instructions)
     }
@@ -284,7 +306,13 @@ impl Display for Instruction {
             Instruction::Mov {
                 source: left,
                 dest: right,
-            } => write!(f, "\tmovl\t{}, {}", left, right),
+            } => {
+                if let Operand::Reg(Reg::CL) = right {
+                    write!(f, "\tmovb\t{}, {}", left, right)
+                } else {
+                    write!(f, "\tmovl\t{}, {}", left, right)
+                }
+            }
             Instruction::Unary { operator, dest } => {
                 write!(f, "\t{}\t{}", operator, dest)
             }
@@ -328,6 +356,11 @@ pub enum BinaryOperator {
     Sub,
     Mult,
     DivRem,
+    Shl,
+    Sar,
+    Or,
+    And,
+    Xor,
 }
 
 impl Display for BinaryOperator {
@@ -336,6 +369,11 @@ impl Display for BinaryOperator {
             BinaryOperator::Add => write!(f, "addl"),
             BinaryOperator::Sub => write!(f, "subl"),
             BinaryOperator::Mult => write!(f, "imull"),
+            BinaryOperator::Shl => write!(f, "shll"),
+            BinaryOperator::Sar => write!(f, "sarl"),
+            BinaryOperator::Or => write!(f, "orl"),
+            BinaryOperator::And => write!(f, "andl"),
+            BinaryOperator::Xor => write!(f, "xorl"),
             _ => write!(f, "xxxx"),
         }
     }
@@ -347,6 +385,11 @@ impl From<&tacky::BinaryOperator> for BinaryOperator {
             tacky::BinaryOperator::Add => BinaryOperator::Add,
             tacky::BinaryOperator::Subtract => BinaryOperator::Sub,
             tacky::BinaryOperator::Multiply => BinaryOperator::Mult,
+            tacky::BinaryOperator::ShiftLeft => BinaryOperator::Shl,
+            tacky::BinaryOperator::ShiftRight => BinaryOperator::Sar,
+            tacky::BinaryOperator::BitwiseAnd => BinaryOperator::And,
+            tacky::BinaryOperator::BitwiseOr => BinaryOperator::Or,
+            tacky::BinaryOperator::BitwiseXor => BinaryOperator::Xor,
             _ => BinaryOperator::DivRem,
         }
     }
@@ -372,6 +415,7 @@ impl From<&tacky::Val> for Operand {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Reg {
     AX,
+    CL,
     DX,
     R10,
     R11,
@@ -383,6 +427,7 @@ impl Display for Operand {
             Operand::Reg(reg) => match reg {
                 Reg::AX => write!(f, "%eax"),
                 Reg::DX => write!(f, "%edx"),
+                Reg::CL => write!(f, "%cl"),
                 Reg::R10 => write!(f, "%r10d"),
                 Reg::R11 => write!(f, "%r11d"),
             },

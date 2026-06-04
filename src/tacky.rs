@@ -46,6 +46,11 @@ pub enum BinaryOperator {
     Multiply,
     Divide,
     Remainder,
+    ShiftLeft,
+    ShiftRight,
+    BitwiseOr,
+    BitwiseAnd,
+    BitwiseXor,
 }
 
 impl From<ast::UnaryOperator> for UnaryOperator {
@@ -65,6 +70,11 @@ impl From<ast::BinaryOperator> for BinaryOperator {
             ast::BinaryOperator::Multiply => BinaryOperator::Multiply,
             ast::BinaryOperator::Divide => BinaryOperator::Divide,
             ast::BinaryOperator::Remainder => BinaryOperator::Remainder,
+            ast::BinaryOperator::BitwiseShiftLeft => BinaryOperator::ShiftLeft,
+            ast::BinaryOperator::BitwiseShiftRight => BinaryOperator::ShiftRight,
+            ast::BinaryOperator::BitwiseAnd => BinaryOperator::BitwiseAnd,
+            ast::BinaryOperator::BitwiseXOR => BinaryOperator::BitwiseXor,
+            ast::BinaryOperator::BitwiseOr => BinaryOperator::BitwiseOr,
         }
     }
 }
