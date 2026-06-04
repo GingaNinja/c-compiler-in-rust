@@ -74,7 +74,8 @@ fn check_for_invalid_operands(instructions: &mut Vec<Instruction>) {
             Instruction::Binary { operator, op1, op2 }
                 if operator == BinaryOperator::Shl || operator == BinaryOperator::Sar =>
             {
-                if let Operand::Stack(_) = op1 {
+                if let Operand::Reg(Reg::CL) = op1 {
+                } else {
                     instructions[i] = Instruction::Mov {
                         source: op1.clone(),
                         dest: Operand::Reg(Reg::CL),
