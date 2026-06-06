@@ -72,6 +72,7 @@ impl From<ast::BinaryOperator> for BinaryOperator {
             ast::BinaryOperator::Remainder => BinaryOperator::Remainder,
             ast::BinaryOperator::BitwiseShiftLeft => BinaryOperator::ShiftLeft,
             ast::BinaryOperator::BitwiseShiftRight => BinaryOperator::ShiftRight,
+
             ast::BinaryOperator::BitwiseAnd => BinaryOperator::BitwiseAnd,
             ast::BinaryOperator::BitwiseXOR => BinaryOperator::BitwiseXor,
             ast::BinaryOperator::BitwiseOr => BinaryOperator::BitwiseOr,

@@ -26,7 +26,81 @@ pub enum FunctionDefinition {
     Function(String, Vec<Instruction>),
 }
 
+enum OpCompatibility {
+    NotBothStacks,
+    Op1SpecificReg(Reg),
+    Op2NotStack,
+}
+
+fn move_binary_op2_to_reg(
+    instructions: &mut Vec<Instruction>,
+    cur_instruction: usize,
+    reg: &Reg,
+    operator: BinaryOperator,
+    op1: Operand,
+    op2: Operand,
+) {
+    instructions[cur_instruction] = Instruction::Mov {
+        source: op2.clone(),
+        dest: Operand::Reg(reg.clone()),
+    };
+    instructions.insert(
+        cur_instruction + 1,
+        Instruction::Binary {
+            operator,
+            op1: op1,
+            op2: Operand::Reg(reg.clone()),
+        },
+    );
+    instructions.insert(
+        cur_instruction + 2,
+        Instruction::Mov {
+            source: Operand::Reg(reg.clone()),
+            dest: op2.clone(),
+        },
+    );
+}
+
+fn move_binary_op1_to_reg(
+    instructions: &mut Vec<Instruction>,
+    cur_instruction: usize,
+    reg: &Reg,
+    operator: BinaryOperator,
+    op1: Operand,
+    op2: Operand,
+) {
+    instructions[cur_instruction] = Instruction::Mov {
+        source: op1.clone(),
+        dest: Operand::Reg(reg.clone()),
+    };
+    instructions.insert(
+        cur_instruction + 1,
+        Instruction::Binary {
+            operator,
+            op1: Operand::Reg(reg.clone()),
+            op2: op2.clone(),
+        },
+    );
+}
+
 fn check_for_invalid_operands(instructions: &mut Vec<Instruction>) {
+    let compatibilities: HashMap<BinaryOperator, OpCompatibility> = HashMap::from([
+        (BinaryOperator::Add, OpCompatibility::NotBothStacks),
+        (BinaryOperator::Sub, OpCompatibility::NotBothStacks),
+        (BinaryOperator::Or, OpCompatibility::NotBothStacks),
+        (BinaryOperator::And, OpCompatibility::NotBothStacks),
+        (BinaryOperator::Xor, OpCompatibility::NotBothStacks),
+        (
+            BinaryOperator::Shl,
+            OpCompatibility::Op1SpecificReg(Reg::CL),
+        ),
+        (
+            BinaryOperator::Sar,
+            OpCompatibility::Op1SpecificReg(Reg::CL),
+        ),
+        (BinaryOperator::Mult, OpCompatibility::Op2NotStack),
+    ]);
+
     let mut i = 0;
     while i < instructions.len() {
         match instructions[i].clone() {
@@ -47,73 +121,54 @@ fn check_for_invalid_operands(instructions: &mut Vec<Instruction>) {
                     }
                 }
             }
-            Instruction::Binary { operator, op1, op2 }
-                if operator == BinaryOperator::Add
-                    || operator == BinaryOperator::Sub
-                    || operator == BinaryOperator::Or
-                    || operator == BinaryOperator::Xor
-                    || operator == BinaryOperator::And =>
-            {
-                if let Operand::Stack(_) = op1 {
-                    if let Operand::Stack(_) = op2 {
-                        instructions[i] = Instruction::Mov {
-                            source: op1.clone(),
-                            dest: Operand::Reg(Reg::R10),
-                        };
-                        instructions.insert(
-                            i + 1,
-                            Instruction::Binary {
-                                operator,
-                                op1: Operand::Reg(Reg::R10),
-                                op2: op2.clone(),
-                            },
-                        );
+            Instruction::Binary { operator, op1, op2 } => {
+                if let Some(rule) = compatibilities.get(&operator) {
+                    match rule {
+                        OpCompatibility::NotBothStacks => {
+                            if let Operand::Stack(_) = op1 {
+                                if let Operand::Stack(_) = op2 {
+                                    move_binary_op1_to_reg(
+                                        instructions,
+                                        i,
+                                        &Reg::R10,
+                                        operator,
+                                        op1,
+                                        op2,
+                                    );
+                                }
+                            }
+                        }
+                        OpCompatibility::Op2NotStack => {
+                            if let Operand::Stack(_) = &op2 {
+                                move_binary_op2_to_reg(
+                                    instructions,
+                                    i,
+                                    &Reg::R11,
+                                    operator,
+                                    op1,
+                                    op2,
+                                );
+                            }
+                        }
+                        OpCompatibility::Op1SpecificReg(reg) => {
+                            if let Operand::Reg(actual_reg) = &op1 {
+                                if actual_reg != reg {
+                                    move_binary_op1_to_reg(
+                                        instructions,
+                                        i,
+                                        reg,
+                                        operator,
+                                        op1,
+                                        op2,
+                                    );
+                                }
+                            } else {
+                                move_binary_op1_to_reg(instructions, i, reg, operator, op1, op2);
+                            }
+                        }
                     }
                 }
             }
-            Instruction::Binary { operator, op1, op2 }
-                if operator == BinaryOperator::Shl || operator == BinaryOperator::Sar =>
-            {
-                if let Operand::Reg(Reg::CL) = op1 {
-                } else {
-                    instructions[i] = Instruction::Mov {
-                        source: op1.clone(),
-                        dest: Operand::Reg(Reg::CL),
-                    };
-                    instructions.insert(
-                        i + 1,
-                        Instruction::Binary {
-                            operator,
-                            op1: Operand::Reg(Reg::CL),
-                            op2: op2.clone(),
-                        },
-                    );
-                }
-            }
-            Instruction::Binary { operator, op1, op2 } if operator == BinaryOperator::Mult => {
-                if let Operand::Stack(_) = op2 {
-                    instructions[i] = Instruction::Mov {
-                        source: op2.clone(),
-                        dest: Operand::Reg(Reg::R11),
-                    };
-                    instructions.insert(
-                        i + 1,
-                        Instruction::Binary {
-                            operator,
-                            op1: op1,
-                            op2: Operand::Reg(Reg::R11),
-                        },
-                    );
-                    instructions.insert(
-                        i + 2,
-                        Instruction::Mov {
-                            source: Operand::Reg(Reg::R11),
-                            dest: op2.clone(),
-                        },
-                    );
-                }
-            }
-
             Instruction::Idiv(src) => {
                 if let Operand::Imm(_) = src {
                     instructions[i] = Instruction::Mov {
@@ -351,7 +406,7 @@ impl From<&tacky::UnaryOperator> for UnaryOperator {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum BinaryOperator {
     Add,
     Sub,
