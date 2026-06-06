@@ -9,6 +9,13 @@ pub enum DccError {
     ExpectedMoreTokens { expected: String },
     ExpectedMoreKeywords { expected: Keyword },
     InvalidInputChar { pos: usize, found_char: String },
+    RegexError,
+}
+
+impl From<regex::Error> for DccError {
+    fn from(_value: regex::Error) -> Self {
+        Self::RegexError
+    }
 }
 
 impl std::fmt::Debug for DccError {
@@ -37,6 +44,9 @@ impl std::fmt::Display for DccError {
             }
             Self::ExpectedMoreKeywords { expected } => {
                 write!(f, "Expected '{expected}' but reached the end")
+            }
+            Self::RegexError => {
+                write!(f, "Regex error - bad...")
             }
         }
     }

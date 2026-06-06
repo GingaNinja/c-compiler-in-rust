@@ -64,6 +64,24 @@ pub enum Token {
     DoubleLeft,
     #[strum(props(Str = ">>"))]
     DoubleRight,
+    #[strum(props(Str = "!"))]
+    Exclamation,
+    #[strum(props(Str = "&&"))]
+    DoubleAmpersand,
+    #[strum(props(Str = "||"))]
+    DoublePipe,
+    #[strum(props(Str = "=="))]
+    DoubleEqual,
+    #[strum(props(Str = "!="))]
+    NotEqual,
+    #[strum(props(Str = "<"))]
+    LessThan,
+    #[strum(props(Str = ">"))]
+    GreaterThan,
+    #[strum(props(Str = "<="))]
+    LessThanOrEqual,
+    #[strum(props(Str = ">="))]
+    GreaterThanOrEqual,
 }
 
 impl Display for Token {
@@ -91,42 +109,39 @@ pub fn lex_source(input: &str) -> Result<Vec<Token>, DccError> {
     ];
     let token_map: Vec<(Regex, Box<dyn Fn(&str) -> Token>)> = vec![
         (
-            Regex::new(r"^[a-z]\w*\b").unwrap(),
+            Regex::new(r"^[a-z]\w*\b")?,
             Box::new(|found| Token::Identifier(found.to_owned())),
         ),
         (
-            Regex::new(r"^[0-9]+\b").unwrap(),
+            Regex::new(r"^[0-9]+\b")?,
             Box::new(|found| Token::Constant(found.parse().unwrap())),
         ),
-        (
-            Regex::new(r"^\(").unwrap(),
-            Box::new(|_| Token::OpenParenthesis),
-        ),
-        (
-            Regex::new(r"^\)").unwrap(),
-            Box::new(|_| Token::CloseParenthesis),
-        ),
-        (Regex::new(r"^\+").unwrap(), Box::new(|_| Token::Plus)),
-        (
-            Regex::new(r"^\/").unwrap(),
-            Box::new(|_| Token::ForwardSlash),
-        ),
-        (Regex::new(r"^\*").unwrap(), Box::new(|_| Token::Asterisk)),
-        (Regex::new(r"^%").unwrap(), Box::new(|_| Token::Percent)),
-        (Regex::new(r"^\{").unwrap(), Box::new(|_| Token::OpenBrace)),
-        (Regex::new(r"^\}").unwrap(), Box::new(|_| Token::CloseBrace)),
-        (Regex::new(r"^;").unwrap(), Box::new(|_| Token::SemiColon)),
-        (Regex::new(r"^~").unwrap(), Box::new(|_| Token::Tilde)),
-        (Regex::new(r"^-").unwrap(), Box::new(|_| Token::Hyphen)),
-        (Regex::new(r"^--").unwrap(), Box::new(|_| Token::TwoHyphens)),
-        (Regex::new(r"^\^").unwrap(), Box::new(|_| Token::Hat)),
-        (Regex::new(r"^\|").unwrap(), Box::new(|_| Token::Pipe)),
-        (Regex::new(r"^&").unwrap(), Box::new(|_| Token::Ampersand)),
-        (Regex::new(r"^<<").unwrap(), Box::new(|_| Token::DoubleLeft)),
-        (
-            Regex::new(r"^>>").unwrap(),
-            Box::new(|_| Token::DoubleRight),
-        ),
+        (Regex::new(r"^\(")?, Box::new(|_| Token::OpenParenthesis)),
+        (Regex::new(r"^\)")?, Box::new(|_| Token::CloseParenthesis)),
+        (Regex::new(r"^\+")?, Box::new(|_| Token::Plus)),
+        (Regex::new(r"^\/")?, Box::new(|_| Token::ForwardSlash)),
+        (Regex::new(r"^\*")?, Box::new(|_| Token::Asterisk)),
+        (Regex::new(r"^%")?, Box::new(|_| Token::Percent)),
+        (Regex::new(r"^\{")?, Box::new(|_| Token::OpenBrace)),
+        (Regex::new(r"^\}")?, Box::new(|_| Token::CloseBrace)),
+        (Regex::new(r"^;")?, Box::new(|_| Token::SemiColon)),
+        (Regex::new(r"^~")?, Box::new(|_| Token::Tilde)),
+        (Regex::new(r"^-")?, Box::new(|_| Token::Hyphen)),
+        (Regex::new(r"^--")?, Box::new(|_| Token::TwoHyphens)),
+        (Regex::new(r"^\^")?, Box::new(|_| Token::Hat)),
+        (Regex::new(r"^\|")?, Box::new(|_| Token::Pipe)),
+        (Regex::new(r"^&")?, Box::new(|_| Token::Ampersand)),
+        (Regex::new(r"^<<")?, Box::new(|_| Token::DoubleLeft)),
+        (Regex::new(r"^>>")?, Box::new(|_| Token::DoubleRight)),
+        (Regex::new(r"^!")?, Box::new(|_| Token::Exclamation)),
+        (Regex::new(r"^&&")?, Box::new(|_| Token::DoubleAmpersand)),
+        (Regex::new(r"^\|\|")?, Box::new(|_| Token::DoublePipe)),
+        (Regex::new(r"^==")?, Box::new(|_| Token::DoubleEqual)),
+        (Regex::new(r"^!=")?, Box::new(|_| Token::NotEqual)),
+        (Regex::new(r"^<")?, Box::new(|_| Token::LessThan)),
+        (Regex::new(r"^>")?, Box::new(|_| Token::GreaterThan)),
+        (Regex::new(r"^<=")?, Box::new(|_| Token::LessThanOrEqual)),
+        (Regex::new(r"^>=")?, Box::new(|_| Token::GreaterThanOrEqual)),
     ];
     let mut pos = 1;
     let mut tokens = vec![];
@@ -194,10 +209,12 @@ pub fn lex_source(input: &str) -> Result<Vec<Token>, DccError> {
 mod test {
     use crate::lex::{
         Keyword::Int, Keyword::Return, Keyword::Void, Token::Ampersand, Token::Asterisk,
-        Token::CloseBrace, Token::CloseParenthesis, Token::Constant, Token::DoubleLeft,
-        Token::DoubleRight, Token::ForwardSlash, Token::Hat, Token::Identifier, Token::Keyword,
-        Token::OpenBrace, Token::OpenParenthesis, Token::Percent, Token::Pipe, Token::Plus,
-        Token::SemiColon, Token::TwoHyphens, lex_source,
+        Token::CloseBrace, Token::CloseParenthesis, Token::Constant, Token::DoubleAmpersand,
+        Token::DoubleEqual, Token::DoubleLeft, Token::DoublePipe, Token::DoubleRight,
+        Token::Exclamation, Token::ForwardSlash, Token::GreaterThan, Token::GreaterThanOrEqual,
+        Token::Hat, Token::Identifier, Token::Keyword, Token::LessThan, Token::LessThanOrEqual,
+        Token::NotEqual, Token::OpenBrace, Token::OpenParenthesis, Token::Percent, Token::Pipe,
+        Token::Plus, Token::SemiColon, Token::TwoHyphens, lex_source,
     };
 
     #[test]
@@ -237,9 +254,9 @@ mod test {
 
     #[test]
     fn invalid_char() {
-        let input = "main ! something else";
+        let input = "main @ something else";
         match lex_source(&input) {
-            Err(err) => assert_eq!(err.to_string(), "invalid input, char 6 - !"),
+            Err(err) => assert_eq!(err.to_string(), "invalid input, char 6 - @"),
             Ok(_) => panic!("expecting failure here"),
         }
     }
@@ -295,5 +312,25 @@ mod test {
 
         let tokens = lex_source(&input).unwrap();
         assert_eq!(tokens, vec![Hat, Pipe, Ampersand, DoubleLeft, DoubleRight]);
+    }
+
+    #[test]
+    fn logical_and_relational_operators() {
+        let input = "!&&||==!=<><=>=";
+        let tokens = lex_source(&input).unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Exclamation,
+                DoubleAmpersand,
+                DoublePipe,
+                DoubleEqual,
+                NotEqual,
+                LessThan,
+                GreaterThan,
+                LessThanOrEqual,
+                GreaterThanOrEqual
+            ]
+        )
     }
 }
