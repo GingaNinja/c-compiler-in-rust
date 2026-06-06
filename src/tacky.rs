@@ -58,6 +58,7 @@ impl From<ast::UnaryOperator> for UnaryOperator {
         match value {
             ast::UnaryOperator::Complement => UnaryOperator::Complement,
             ast::UnaryOperator::Negate => UnaryOperator::Negate,
+            _ => todo!(),
         }
     }
 }
@@ -76,6 +77,7 @@ impl From<ast::BinaryOperator> for BinaryOperator {
             ast::BinaryOperator::BitwiseAnd => BinaryOperator::BitwiseAnd,
             ast::BinaryOperator::BitwiseXOR => BinaryOperator::BitwiseXor,
             ast::BinaryOperator::BitwiseOr => BinaryOperator::BitwiseOr,
+            _ => todo!(),
         }
     }
 }

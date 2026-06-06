@@ -15,6 +15,7 @@ pub enum Exp {
 pub enum UnaryOperator {
     Complement,
     Negate,
+    Not,
 }
 
 #[derive(Debug, PartialEq)]
@@ -29,6 +30,14 @@ pub enum BinaryOperator {
     BitwiseAnd,
     BitwiseXOR,
     BitwiseOr,
+    And,
+    Or,
+    Equal,
+    NotEqual,
+    LessThan,
+    LessOrEqual,
+    GreaterThan,
+    GreaterOrEqual,
 }
 
 #[derive(Debug, PartialEq)]
@@ -105,6 +114,7 @@ fn parse_unop(token: &Token) -> Result<UnaryOperator, DccError> {
     match token {
         Token::Hyphen => Ok(UnaryOperator::Negate),
         Token::Tilde => Ok(UnaryOperator::Complement),
+        Token::Exclamation => Ok(UnaryOperator::Not),
         unexpected => Err(DccError::ExpectedToken {
             actual: unexpected.clone(),
             expected: "<unary>".into(),
@@ -124,6 +134,14 @@ fn parse_binop(tokens: &mut Peekable<Iter<Token>>) -> Result<BinaryOperator, Dcc
         Some(Token::Ampersand) => Ok(BinaryOperator::BitwiseAnd),
         Some(Token::DoubleLeft) => Ok(BinaryOperator::BitwiseShiftLeft),
         Some(Token::DoubleRight) => Ok(BinaryOperator::BitwiseShiftRight),
+        Some(Token::DoubleEqual) => Ok(BinaryOperator::Equal),
+        Some(Token::DoubleAmpersand) => Ok(BinaryOperator::And),
+        Some(Token::DoublePipe) => Ok(BinaryOperator::Or),
+        Some(Token::LessThan) => Ok(BinaryOperator::LessThan),
+        Some(Token::LessThanOrEqual) => Ok(BinaryOperator::LessOrEqual),
+        Some(Token::GreaterThan) => Ok(BinaryOperator::GreaterThan),
+        Some(Token::GreaterThanOrEqual) => Ok(BinaryOperator::GreaterOrEqual),
+        Some(Token::NotEqual) => Ok(BinaryOperator::NotEqual),
         Some(other) => Err(DccError::ExpectedToken {
             actual: other.clone(),
             expected: "<op>".into(),
@@ -137,7 +155,11 @@ fn parse_binop(tokens: &mut Peekable<Iter<Token>>) -> Result<BinaryOperator, Dcc
 pub fn parse_factor(tokens: &mut Peekable<Iter<Token>>) -> Result<Exp, DccError> {
     match tokens.next() {
         Some(Token::Constant(val)) => Ok(Exp::Constant(*val)),
-        Some(token) if token == &Token::Hyphen || token == &Token::Tilde => {
+        Some(token)
+            if token == &Token::Hyphen
+                || token == &Token::Tilde
+                || token == &Token::Exclamation =>
+        {
             let unary_op = parse_unop(token)?;
             let inner_exp = parse_factor(tokens)?;
             Ok(Exp::Unary(unary_op, Box::new(inner_exp)))
@@ -159,9 +181,17 @@ pub fn parse_factor(tokens: &mut Peekable<Iter<Token>>) -> Result<Exp, DccError>
 
 fn get_operator_precedence(token: &Token) -> i32 {
     match token {
-        Token::Pipe => 33,
-        Token::Hat => 34,
-        Token::Ampersand => 35,
+        Token::DoublePipe => 5,
+        Token::DoubleAmpersand => 10,
+        Token::Pipe => 15,
+        Token::Hat => 16,
+        Token::Ampersand => 17,
+        Token::NotEqual => 30,
+        Token::DoubleEqual => 30,
+        Token::LessThan => 35,
+        Token::LessThanOrEqual => 35,
+        Token::GreaterThan => 35,
+        Token::GreaterThanOrEqual => 35,
         Token::DoubleLeft => 40,
         Token::DoubleRight => 40,
         Token::Plus => 45,
@@ -270,6 +300,7 @@ mod test {
                 self, CloseBrace, CloseParenthesis, Constant, Hyphen, Identifier, Keyword,
                 OpenBrace, OpenParenthesis, Plus, SemiColon, Tilde,
             },
+            lex_source,
         },
     };
 
@@ -440,6 +471,29 @@ mod test {
                 ))
             )
         );
+    }
+
+    #[test]
+    fn relational_operators() {
+        // ((((((1 == 1) && (1 < 2)) || (1 <= 3)) || (4 < 5)) || (6 > 7)) || (8 >= 9)) || !(1 != 2)
+        let input = "1 == 1 && 1 < 2 || 1 <= 3 || 4 < 5 || 6 > 7 || 8 >= 9 || !(1 != 2)";
+        let tokens = lex_source(&input).unwrap();
+        let res = parse_exp(&mut tokens.iter().peekable(), 0).unwrap();
+        assert_eq!(
+            res,
+            Exp::Binary(
+                BinaryOperator::Or,
+                Box::new(Exp::Constant(1)),
+                Box::new(Exp::Unary(
+                    UnaryOperator::Not,
+                    Box::new(Exp::Binary(
+                        BinaryOperator::NotEqual,
+                        Box::new(Exp::Constant(1)),
+                        Box::new(Exp::Constant(2))
+                    ))
+                ))
+            )
+        )
     }
 
     #[test]
