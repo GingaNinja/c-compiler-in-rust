@@ -483,7 +483,51 @@ mod test {
             res,
             Exp::Binary(
                 BinaryOperator::Or,
-                Box::new(Exp::Constant(1)),
+                Box::new(Exp::Binary(
+                    BinaryOperator::Or,
+                    Box::new(Exp::Binary(
+                        BinaryOperator::Or,
+                        Box::new(Exp::Binary(
+                            BinaryOperator::Or,
+                            Box::new(Exp::Binary(
+                                BinaryOperator::Or,
+                                Box::new(Exp::Binary(
+                                    BinaryOperator::And,
+                                    Box::new(Exp::Binary(
+                                        BinaryOperator::Equal,
+                                        Box::new(Exp::Constant(1)),
+                                        Box::new(Exp::Constant(1))
+                                    )),
+                                    Box::new(Exp::Binary(
+                                        BinaryOperator::LessThan,
+                                        Box::new(Exp::Constant(1)),
+                                        Box::new(Exp::Constant(2))
+                                    ))
+                                )),
+                                Box::new(Exp::Binary(
+                                    BinaryOperator::LessOrEqual,
+                                    Box::new(Exp::Constant(1)),
+                                    Box::new(Exp::Constant(3))
+                                ))
+                            )),
+                            Box::new(Exp::Binary(
+                                BinaryOperator::LessThan,
+                                Box::new(Exp::Constant(4)),
+                                Box::new(Exp::Constant(5))
+                            ))
+                        )),
+                        Box::new(Exp::Binary(
+                            BinaryOperator::GreaterThan,
+                            Box::new(Exp::Constant(6)),
+                            Box::new(Exp::Constant(7))
+                        ))
+                    )),
+                    Box::new(Exp::Binary(
+                        BinaryOperator::GreaterOrEqual,
+                        Box::new(Exp::Constant(8)),
+                        Box::new(Exp::Constant(9))
+                    ))
+                )),
                 Box::new(Exp::Unary(
                     UnaryOperator::Not,
                     Box::new(Exp::Binary(
